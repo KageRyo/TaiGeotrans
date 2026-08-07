@@ -1,143 +1,128 @@
 # TaiGeotrans
 
-TaiGeotrans 是一個台灣地址與座標轉換工具，提供以下功能：
+[![CI](https://github.com/KageRyo/TaiGeotrans/actions/workflows/ci.yml/badge.svg)](https://github.com/KageRyo/TaiGeotrans/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/taigeotrans?logo=pypi&logoColor=white)](https://pypi.org/project/taigeotrans/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-- 中文地址轉座標（透過 TGOS）
-- WGS84（EPSG:4326）轉 TWD97（EPSG:3826）
-- 單筆與批量處理
-- 輸出 `list[GeocodeResult]` 或 `pandas.DataFrame`
+TaiGeotrans 是一個台灣地址與座標轉換工具，支援：
 
-本專案為純轉換元件，設計上不使用任何資料庫，也不做持久化儲存。
+- WGS84（EPSG:4326）與 TWD97（EPSG:3826）雙向轉換
+- 透過 TGOS 將台灣地址轉成座標
+- 批量處理、pandas DataFrame 與 GeoJSON
+- 命令列操作
 
 ## 安裝
 
-```bash
-git clone https://github.com/KageRyo/TaiGeotrans.git
-cd TaiGeotrans
-pip install -e .
-```
-
-開發環境：
+只使用座標轉換時：
 
 ```bash
-pip install -e ".[dev]"
+python -m pip install taigeotrans
 ```
 
-## 使用方式
+需要地址定位、DataFrame 或 CLI 時，再安裝對應功能：
 
-### Python API
+```bash
+python -m pip install "taigeotrans[geocoding]"
+python -m pip install "taigeotrans[dataframe]"
+python -m pip install "taigeotrans[cli]"
+```
+
+也可以一次安裝全部功能：
+
+```bash
+python -m pip install "taigeotrans[all]"
+```
+
+## Python API
 
 ```python
 from taigeotrans import TaiGeotrans
 
 tg = TaiGeotrans()
 
-# 1) 地址 -> TWD97
-r1 = tg.geocode("嘉義縣民雄鄉中樂路55號")
-print(r1.twd97_x, r1.twd97_y, r1.status)
+# WGS84 -> TWD97
+result = tg.transform_lonlat(121.5654, 25.0330)
+print(result.twd97_x, result.twd97_y)
 
-# 2) WGS84 -> TWD97
-r2 = tg.transform_lonlat(120.4278, 23.5521)
-print(r2.twd97_x, r2.twd97_y, r2.status)
-
-# 3) 批量地址
-addresses = [
-    "嘉義縣民雄鄉中樂路55號",
-    "台北市信義區市府路1號",
-]
-batch_a = tg.batch_geocode(addresses)
-
-# 4) 批量座標
-coords = [
-    (120.4278, 23.5521),
-    (121.5654, 25.0330),
-]
-batch_c = tg.batch_transform_lonlat(coords)
+# TWD97 -> WGS84
+result = tg.transform_twd97(303891.54, 2773226.67)
+print(result.wgs84_lon, result.wgs84_lat)
 ```
 
-### 與 pandas 整合
+### 地址定位
+
+地址定位使用 TGOS，需要 AppID 與 APIKey。請先在 TGOS 申請這兩項資料，
+再透過環境變數提供：
+
+```bash
+export TGOS_APP_ID="your-app-id"
+export TGOS_API_KEY="your-api-key"
+```
+
+或直接傳給 `TaiGeotrans`：
 
 ```python
-df1 = tg.batch_geocode_to_dataframe(addresses)
-print(df1[["input_address", "twd97_x", "twd97_y", "status"]])
-
-df2 = tg.batch_transform_lonlat_to_dataframe(coords)
-print(df2[["input_lon", "input_lat", "twd97_x", "twd97_y", "status"]])
+tg = TaiGeotrans(
+    tgos_app_id="your-app-id",
+    tgos_api_key="your-api-key",
+)
+result = tg.geocode("臺北市中山區松江路469巷4號")
+print(result.matched_address, result.twd97_x, result.twd97_y)
 ```
 
-### CLI
+Python API 不會自動讀取 `.env`。CLI 會讀取目前工作目錄的 `.env`，可以複製
+`.env.example` 作為範本；實際 key 不要提交到 Git。
 
-單筆：
+### 批量處理
+
+```python
+addresses = ["嘉義縣民雄鄉中樂路55號", "臺北市信義區市府路1號"]
+coords = [(120.4278, 23.5521), (121.5654, 25.0330)]
+
+address_results = tg.batch_geocode(addresses, show_progress=False)
+coordinate_results = tg.batch_transform_lonlat(coords, show_progress=False)
+df = tg.batch_transform_lonlat_to_dataframe(coords, show_progress=False)
+```
+
+DataFrame 方法需要 `taigeotrans[dataframe]`。進度列使用 `tqdm`；沒有安裝時，
+批量方法仍可執行，只是不顯示進度列。
+
+## CLI
 
 ```bash
-taigeotrans geocode "嘉義縣民雄鄉中樂路55號"
-taigeotrans transform 120.4278 23.5521
+python -m pip install "taigeotrans[cli]"
+
+taigeotrans transform 121.5654 25.0330
+taigeotrans transform 121.5654 25.0330 --format json
+taigeotrans geocode "臺北市信義區市府路1號"
+taigeotrans batch-geocode addresses.txt -o results.csv
+taigeotrans batch-transform coords.csv -o results.csv
 ```
 
-批量（地址文字檔）：
+`addresses.txt` 每行一個地址；`coords.csv` 需要包含 `lon,lat` 欄位。執行
+`taigeotrans --help` 查看完整指令。
+
+## 結果
+
+每個操作都回傳 `GeocodeResult`，包含輸入值、WGS84/TWD97 座標、來源與狀態。
+狀態可能是 `success`、`out_of_bounds`、`invalid` 或 `failed`。
+
+## 開發
 
 ```bash
-taigeotrans batch-geocode addresses.txt -o geocode_result.csv
-taigeotrans batch-geocode addresses.txt -o geocode_result.json --format json
+python -m pip install -e ".[dev,all]"
+python -m pytest
+python -m ruff check src tests
+python -m ruff format --check src tests
+python -m mypy src
+python -m build
+python -m twine check dist/*
 ```
 
-`addresses.txt` 範例：
-
-```text
-嘉義縣民雄鄉中樂路55號
-台北市信義區市府路1號
-```
-
-批量（座標 CSV）：
-
-```bash
-taigeotrans batch-transform coords.csv -o transform_result.csv
-```
-
-`coords.csv` 範例：
-
-```csv
-lon,lat
-120.4278,23.5521
-121.5654,25.0330
-```
-
-## GeocodeResult 欄位
-
-| 欄位 | 說明 |
-|---|---|
-| `input_address` | 輸入地址 |
-| `input_lon` / `input_lat` | 輸入經緯度 |
-| `twd97_x` / `twd97_y` | TWD97 座標 |
-| `wgs84_lon` / `wgs84_lat` | WGS84 座標 |
-| `status` | `success` / `failed` / `invalid` / `out_of_bounds` |
-| `confidence` | 信心值（0~1） |
-| `source` | 資料來源（`TGOS` / `PYPROJ`） |
-| `matched_address` | TGOS 回傳的匹配地址 |
-| `error_message` | 錯誤訊息 |
-
-## 座標範圍檢查
-
-台灣本島 TWD97 合理範圍：
-
-- X: `140000 ~ 350000`
-- Y: `2400000 ~ 2800000`
-
-超出範圍時會以 `out_of_bounds` 標示，不會寫入任何資料庫。
-
-## 測試
-
-```bash
-pytest -v
-pytest --cov=taigeotrans --cov-report=term-missing
-```
-
-## 注意事項
-
-- 地址查詢使用 TGOS 公開服務，請遵守其使用規範。
-- 本專案不包含資料庫或快取層。
-- 轉換核心為 `pyproj`，地址精度受 TGOS 回傳品質影響。
+CI 會測試 Python 3.11–3.13。推送 `vMAJOR.MINOR.PATCH` tag 後，release workflow
+會建置套件、發佈到 PyPI，並建立 GitHub Release。
 
 ## 授權
 
-MIT License，請參考 `LICENSE`。
+MIT License，請參考 [LICENSE](LICENSE)。
