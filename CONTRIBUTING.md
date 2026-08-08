@@ -28,10 +28,11 @@ ci: add PyPI trusted publishing workflow
 
 ## Release
 
-1. Update the version in `pyproject.toml` and `src/taigeotrans/__init__.py`.
+1. Update the version in `pyproject.toml`; `taigeotrans.__version__` reads the
+   installed package metadata from that single source.
 2. Run the complete local checks.
 3. Merge the release commit into `main`.
-4. Create and push a matching tag, such as `v0.1.0`.
+4. Create and push a matching tag, such as `v0.1.1`.
 
 The release workflow verifies the tag, builds and checks the distributions,
 publishes to PyPI with Trusted Publishing, and creates a GitHub Release.
