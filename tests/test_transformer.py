@@ -107,6 +107,23 @@ class TestTaiGeotrans:
         assert result.twd97_x is not None
         assert result.twd97_y is not None
 
+    @pytest.mark.parametrize(
+        ("lon", "lat"),
+        [
+            (119.566, 23.565),  # Penghu
+            (118.32, 24.43),  # Kinmen
+            (120.0, 26.15),  # Matsu
+        ],
+    )
+    def test_outlying_islands_are_in_supported_bounds(self, lon, lat):
+        """Test that supported outlying islands are not marked out of bounds."""
+        converter = TaiGeotrans()
+
+        result = converter.transform_lonlat(lon, lat)
+
+        assert result.status == TransformStatus.SUCCESS
+        assert result.is_in_taiwan_bounds()
+
     def test_batch_transform_lonlat(self):
         """Test batch coordinate transformation"""
         converter = TaiGeotrans()

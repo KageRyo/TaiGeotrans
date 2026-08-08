@@ -6,6 +6,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_validator
 
+from taigeotrans.utils.projection import is_in_taiwan_twd97_bounds
+
 
 class TransformStatus(StrEnum):
     """Transformation status enumeration"""
@@ -51,10 +53,10 @@ class GeocodeResult(BaseModel):
         return v
 
     def is_in_taiwan_bounds(self) -> bool:
-        """Check if coordinates are within Taiwan mainland bounds"""
+        """Check if coordinates are within a supported Taiwan-area region."""
         if self.twd97_x is None or self.twd97_y is None:
             return False
-        return 140000 <= self.twd97_x <= 350000 and 2400000 <= self.twd97_y <= 2800000
+        return is_in_taiwan_twd97_bounds(self.twd97_x, self.twd97_y)
 
     def to_dict(self) -> dict:
         """Convert to dictionary format"""

@@ -142,7 +142,9 @@ def _print_status(result: GeocodeResult) -> None:
     if result.status == TransformStatus.SUCCESS:
         console.print("[green]Success[/green]")
     elif result.status == TransformStatus.OUT_OF_BOUNDS:
-        console.print("[yellow]Warning: coordinates are outside Taiwan mainland bounds[/yellow]")
+        console.print(
+            "[yellow]Warning: coordinates are outside supported Taiwan-area bounds[/yellow]"
+        )
     else:
         console.print(f"[red]Failed: {result.error_message}[/red]")
 

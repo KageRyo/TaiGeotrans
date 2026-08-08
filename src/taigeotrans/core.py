@@ -150,7 +150,9 @@ class TaiGeotrans:
                 confidence=confidence,
                 source="TGOS",
                 matched_address=matched_address,
-                error_message=None if in_bounds else "Coordinates outside Taiwan mainland bounds",
+                error_message=None
+                if in_bounds
+                else "Coordinates outside supported Taiwan-area bounds",
             )
         except Exception as exc:
             from taigeotrans.providers.tgos import TGOSConfigurationError
@@ -218,7 +220,9 @@ class TaiGeotrans:
                 status=status,
                 confidence=1.0,
                 source="PYPROJ",
-                error_message=None if in_bounds else "Coordinates outside Taiwan mainland bounds",
+                error_message=None
+                if in_bounds
+                else "Coordinates outside supported Taiwan-area bounds",
             )
         except Exception as exc:
             logger.debug("Coordinate transformation failed", exc_info=True)
@@ -254,7 +258,9 @@ class TaiGeotrans:
                 status=status,
                 confidence=1.0,
                 source="PYPROJ",
-                error_message=None if in_bounds else "Coordinates outside Taiwan mainland bounds",
+                error_message=None
+                if in_bounds
+                else "Coordinates outside supported Taiwan-area bounds",
             )
         except Exception as exc:
             logger.debug("Reverse coordinate transformation failed", exc_info=True)
