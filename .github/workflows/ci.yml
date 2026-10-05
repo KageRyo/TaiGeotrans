@@ -18,31 +18,58 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.5"
+          enable-cache: true
 
       - name: Install project and development dependencies
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev,all]"
-
-      - name: Run tests
-        run: python -m pytest
-
-      - name: Run Ruff lint
-        run: python -m ruff check src tests
-
-      - name: Check Ruff formatting
-        run: python -m ruff format --check src tests
-
-      - name: Run mypy
-        run: python -m mypy src
+        run: uv sync --locked --all-extras --no-install-project --no-build
 
       - name: Build distributions
-        run: python -m build
+        run: uv run --no-sync --no-build python -m build --no-isolation
+
+      - name: Install built project wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          wheels=(dist/*.whl)
+          test "${#wheels[@]}" -eq 1
+          uv pip install --python .venv/bin/python --no-build --no-deps "${wheels[0]}"
+
+      - name: Run tests
+        run: uv run --no-sync --no-build python -m pytest
+
+      - name: Run Ruff lint
+        run: uv run --no-sync --no-build python -m ruff check src tests
+
+      - name: Check Ruff formatting
+        run: uv run --no-sync --no-build python -m ruff format --check src tests
+
+      - name: Run mypy
+        run: uv run --no-sync --no-build python -m mypy src
 
       - name: Check distributions
-        run: python -m twine check dist/*
+        run: uv run --no-sync --no-build python -m twine check dist/*
+
+      - name: Smoke test installed wheel and CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv venv "$RUNNER_TEMP/taigeotrans-wheel-smoke" --python "$(command -v python)"
+          shopt -s nullglob
+          wheels=(dist/*.whl)
+          test "${#wheels[@]}" -eq 1
+          uv pip install --no-build --python "$RUNNER_TEMP/taigeotrans-wheel-smoke/bin/python" "${wheels[0]}[all]"
+          cd "$RUNNER_TEMP"
+          taigeotrans-wheel-smoke/bin/python -c "from taigeotrans import TaiGeotrans, TransformStatus; result = TaiGeotrans().transform_lonlat(121.5654, 25.0330); assert result.status == TransformStatus.SUCCESS; assert abs(result.twd97_x - 307056.818979) < 0.01; assert abs(result.twd97_y - 2769551.836862) < 0.01; print(result)"
+          taigeotrans-wheel-smoke/bin/taigeotrans --help
