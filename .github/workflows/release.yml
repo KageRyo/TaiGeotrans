@@ -40,32 +40,44 @@ jobs:
           enable-cache: true
 
       - name: Install project and development dependencies
-        run: uv sync --locked --all-extras
-
-      - name: Run tests
-        run: uv run --locked --all-extras python -m pytest
-
-      - name: Run Ruff lint
-        run: uv run --locked --all-extras python -m ruff check src tests
-
-      - name: Check Ruff formatting
-        run: uv run --locked --all-extras python -m ruff format --check src tests
-
-      - name: Run mypy
-        run: uv run --locked --all-extras python -m mypy src
+        run: uv sync --locked --all-extras --no-install-project --no-build
 
       - name: Build distributions
-        run: uv run --locked --all-extras python -m build --no-isolation
+        run: uv run --no-sync --no-build python -m build --no-isolation
+
+      - name: Install built project wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          wheels=(dist/*.whl)
+          test "${#wheels[@]}" -eq 1
+          uv pip install --python .venv/bin/python --no-build --no-deps "${wheels[0]}"
+
+      - name: Run tests
+        run: uv run --no-sync --no-build python -m pytest
+
+      - name: Run Ruff lint
+        run: uv run --no-sync --no-build python -m ruff check src tests
+
+      - name: Check Ruff formatting
+        run: uv run --no-sync --no-build python -m ruff format --check src tests
+
+      - name: Run mypy
+        run: uv run --no-sync --no-build python -m mypy src
 
       - name: Check distributions
-        run: uv run --locked --all-extras python -m twine check dist/*
+        run: uv run --no-sync --no-build python -m twine check dist/*
 
       - name: Smoke test installed wheel and CLI
         shell: bash
         run: |
           set -euo pipefail
           uv venv "$RUNNER_TEMP/taigeotrans-wheel-smoke" --python "$(command -v python)"
-          uv pip install --python "$RUNNER_TEMP/taigeotrans-wheel-smoke/bin/python" "$(echo dist/*.whl)[all]"
+          shopt -s nullglob
+          wheels=(dist/*.whl)
+          test "${#wheels[@]}" -eq 1
+          uv pip install --no-build --python "$RUNNER_TEMP/taigeotrans-wheel-smoke/bin/python" "${wheels[0]}[all]"
           cd "$RUNNER_TEMP"
           taigeotrans-wheel-smoke/bin/python -c "from taigeotrans import TaiGeotrans, TransformStatus; result = TaiGeotrans().transform_lonlat(121.5654, 25.0330); assert result.status == TransformStatus.SUCCESS; assert abs(result.twd97_x - 307056.818979) < 0.01; assert abs(result.twd97_y - 2769551.836862) < 0.01; print(result)"
           taigeotrans-wheel-smoke/bin/taigeotrans --help

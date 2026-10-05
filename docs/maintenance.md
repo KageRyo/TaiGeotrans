@@ -10,19 +10,23 @@ Dependabot 每週分組提出 Python 與 GitHub Actions 更新，並限制同時
 
 ## 可重現的依賴與發佈
 
-提交 `uv.lock`，CI 使用固定版本 uv 和 `uv sync --locked --all-extras`。
+提交 `uv.lock`，CI 使用固定版本 uv 和 `uv sync --locked --all-extras --no-install-project --no-build`。
 鎖定所有 extras，包括 development 的 setuptools 建置後端；使用
 `python -m build --no-isolation` 避免建置時再次解析後端依賴。
+第三方依賴與 wheel smoke install 使用 `--no-build`，避免執行依賴的 source build scripts。
+CI 明確建置本專案後安裝該 wheel，再執行測試；`uv run --no-sync --no-build`
+避免每個檢查步驟再觸發同步或建置。
 一般使用者仍可透過 pip 安裝，公開依賴範圍與 optional extras 維持相容。
 
 ```bash
-uv sync --locked --all-extras
-uv run --locked --all-extras python -m pytest
-uv run --locked --all-extras python -m ruff check src tests
-uv run --locked --all-extras python -m ruff format --check src tests
-uv run --locked --all-extras python -m mypy src
-uv run --locked --all-extras python -m build --no-isolation
-uv run --locked --all-extras python -m twine check dist/*
+uv sync --locked --all-extras --no-install-project --no-build
+uv run --no-sync --no-build python -m build --no-isolation
+uv pip install --python .venv/bin/python --no-build --no-deps dist/*.whl
+uv run --no-sync --no-build python -m pytest
+uv run --no-sync --no-build python -m ruff check src tests
+uv run --no-sync --no-build python -m ruff format --check src tests
+uv run --no-sync --no-build python -m mypy src
+uv run --no-sync --no-build python -m twine check dist/*
 ```
 
 CI 在 Python 3.11–3.13 檢查測試、lint、typing、建置與 metadata，並在獨立環境中
