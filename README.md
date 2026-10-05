@@ -129,3 +129,8 @@ CI 會測試 Python 3.11–3.13。推送 `vMAJOR.MINOR.PATCH` tag 後，release 
 ## 授權
 
 MIT License，請參考 [LICENSE](LICENSE)。
+
+## 維護
+
+依賴更新、必要 CI、GitHub Actions 固定版本及發佈驗證流程，請參考
+[維護規範](docs/maintenance.md)。
