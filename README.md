@@ -138,7 +138,7 @@ python -m build
 python -m twine check dist/*
 ```
 
-CI tests Python 3.11–3.13. Pushing a `vMAJOR.MINOR.PATCH` tag triggers the release workflow to build distributions, publish to PyPI, and create a GitHub Release. See [CONTRIBUTING.md](CONTRIBUTING.md) for release prerequisites.
+CI tests Python 3.11–3.13. Pushing a `TaiGeotrans-v.X.Y.Z` tag triggers the release workflow to build distributions, publish to PyPI, and create a GitHub Release. See [CONTRIBUTING.md](CONTRIBUTING.md) for release prerequisites.
 
 ## Documentation
 

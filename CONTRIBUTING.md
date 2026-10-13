@@ -32,7 +32,7 @@ ci: add PyPI trusted publishing workflow
    installed package metadata from that single source.
 2. Run the complete local checks.
 3. Merge the release commit into `main`.
-4. Create and push a matching tag, such as `v0.1.1`.
+4. Create and push a matching tag, using `TaiGeotrans-v.X.Y.Z`, such as `TaiGeotrans-v.0.1.2`. The package version remains `X.Y.Z` without the tag prefix.
 
 The release workflow verifies the tag, builds and checks the distributions,
 publishes to PyPI with Trusted Publishing, and creates a GitHub Release.
