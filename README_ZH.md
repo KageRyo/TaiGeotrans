@@ -146,6 +146,7 @@ CI 會測試 Python 3.11–3.13。推送 `TaiGeotrans-v.X.Y.Z` tag 後，release
 - [開發紀錄（繁體中文）](DEVELOPMENT.md)
 - [貢獻指南（英文）](CONTRIBUTING.md)
 - [安全政策（英文）](SECURITY.md)
+- [隱私權與資料處理說明（繁體中文）](PRIVACY_ZH.md)
 
 ## 授權
 

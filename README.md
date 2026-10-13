@@ -146,6 +146,7 @@ CI tests Python 3.11–3.13. Pushing a `TaiGeotrans-v.X.Y.Z` tag triggers the re
 - [Development notes (Traditional Chinese)](DEVELOPMENT.md)
 - [Contributing (English)](CONTRIBUTING.md)
 - [Security policy (English)](SECURITY.md)
+- [Privacy and data handling (English)](PRIVACY.md)
 
 ## License
 
