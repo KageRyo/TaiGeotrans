@@ -8,6 +8,8 @@ Dependabot 每週分組提出 Python 與 GitHub Actions 更新，並限制同時
 `test (3.13)` 通過。必要檢查不使用 workflow 層級的 PR 路徑過濾；修改 job 名稱時
 也必須更新 repository ruleset。
 
+純文件 PR（所有變更路徑皆為 `.md` 或 `.rst`）略過單元測試步驟，但保留三個必要 `test` 檢查，以及 lint、typing、套件建置、metadata 與 wheel/CLI smoke 檢查。包含程式碼、測試、套件設定、lockfile 或 workflow 的 PR 仍執行單元測試；推送至 `main` 也一律執行。路徑判斷使用 PR merge base 至 head 的完整差異，重新命名會檢查原始與新路徑。
+
 ## 可重現的依賴與發佈
 
 提交 `uv.lock`，CI 使用固定版本 uv 和 `uv sync --locked --all-extras --no-install-project --no-build`。

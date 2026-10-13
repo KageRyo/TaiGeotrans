@@ -39,4 +39,4 @@ print(result.matched_address, result.twd97_x, result.twd97_y)
 ```
 
 完整的 optional dependencies、CLI、批量、DataFrame 與 release 說明請參考
-[README.md](README.md)。
+[繁體中文 README](README_ZH.md)。

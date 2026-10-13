@@ -13,7 +13,7 @@ python -m twine check dist/*
 ```
 
 Do not commit `.env`, TGOS credentials, generated distributions, or virtual
-environments. Add tests and update the README when changing the public API.
+environments. Add tests and update both `README.md` (English) and `README_ZH.md` (Traditional Chinese) when changing the public API. Keep their examples and section structure in sync.
 
 ## Commits
 
