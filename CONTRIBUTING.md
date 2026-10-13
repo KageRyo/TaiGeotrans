@@ -15,6 +15,8 @@ python -m twine check dist/*
 Do not commit `.env`, TGOS credentials, generated distributions, or virtual
 environments. Add tests and update both `README.md` (English) and `README_ZH.md` (Traditional Chinese) when changing the public API. Keep their examples and section structure in sync.
 
+Changes to network requests, logging, telemetry, or stored data must also update `PRIVACY.md` and `PRIVACY_ZH.md` to reflect the implemented behavior.
+
 ## Commits
 
 Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), for example:
