@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "taigeotrans"
 version = "0.1.1"
-description = "Taiwan Geospatial Transformer - 台灣地址與座標轉換工具"
+description = "Taiwan address geocoding via TGOS and WGS84 ↔ TWD97 coordinate conversion, with a Python API and CLI."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
