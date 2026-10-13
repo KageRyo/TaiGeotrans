@@ -138,7 +138,7 @@ python -m build
 python -m twine check dist/*
 ```
 
-CI 會測試 Python 3.11–3.13。推送 `vMAJOR.MINOR.PATCH` tag 後，release workflow會建置套件、發佈到 PyPI，並建立 GitHub Release。
+CI 會測試 Python 3.11–3.13。推送 `TaiGeotrans-v.X.Y.Z` tag 後，release workflow 會建置套件、發佈到 PyPI，並建立 GitHub Release。
 
 ## 文件
 

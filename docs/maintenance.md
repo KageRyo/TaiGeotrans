@@ -36,7 +36,7 @@ CI 在 Python 3.11–3.13 檢查測試、lint、typing、建置與 metadata，�
 metadata 解析消費者依賴，用來檢查發布套件的相容性；它不代表逐位元可重現的產物。
 更新依賴時執行 `uv lock --upgrade`，檢閱 lock 差異，再跑上述驗證。
 
-release tag 必須與 `pyproject.toml` 版本一致。PyPI Trusted Publishing 的環境名稱
+後續 release tag 統一使用 `TaiGeotrans-v.X.Y.Z`（例如 `TaiGeotrans-v.0.1.2`），其中 `X.Y.Z` 必須與 `pyproject.toml` 套件版本一致；PyPI 版本維持 `X.Y.Z`。PyPI Trusted Publishing 的環境名稱
 維持 `release`；不覆寫已發佈版本或歷史 release assets。發布前需驗證 metadata、
 wheel 安裝及 CLI。版本化的跨專案依賴另行明確更新，先驗證相容性再採用。
 
