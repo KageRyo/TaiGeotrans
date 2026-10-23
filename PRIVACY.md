@@ -2,7 +2,7 @@
 
 **English** | [繁體中文](PRIVACY_ZH.md)
 
-Last updated: 2026-10-13. This notice describes the official TaiGeotrans Python package and CLI as implemented in version 0.1.2. It does not describe a separately hosted application that uses the package.
+Last updated: 2026-10-23. This notice describes the official TaiGeotrans Python package and CLI as implemented in version 0.2.0. It does not describe a separately hosted application that uses the package.
 
 ## Data flow
 
@@ -47,3 +47,5 @@ Do not include real personal addresses, sensitive coordinates, API keys, or unre
 ## Scope and updates
 
 This notice describes package behavior, not the privacy practices of GitHub, PyPI, TGOS, or applications that integrate TaiGeotrans. Visiting those services or installing packages involves their own infrastructure and policies. Changes to TaiGeotrans's data handling should be reflected in this notice and its [Traditional Chinese version](PRIVACY_ZH.md).
+
+Trusted administrative context supplied by a caller is included in the completed address sent to TGOS. Results can retain the original/normalized/completed address, candidate address explanations and a provider-response digest; applications choose whether and where to persist those records.

@@ -155,3 +155,29 @@ MIT License. See [LICENSE](LICENSE).
 ## Maintenance
 
 See the [maintenance guide (Traditional Chinese)](docs/maintenance.md) for dependency updates, required CI checks, pinned GitHub Actions, and release verification.
+
+## Verified address matching (0.2.0)
+
+`geocode()` and `batch_geocode()` now return successful coordinates only for one verified address-level candidate. Their call shapes and result status enum remain available, but fuzzy coordinates that 0.1.x accepted are no longer successful results. Incomplete or conflicting inputs, unknown provider match metadata, multiple verified candidates, truncated candidate sets and coarse provider locations have no top-level coordinates. Coordinate-only transformations are unchanged.
+
+```python
+from taigeotrans import AddressContext, TaiGeotrans, complete_address, parse_address
+
+context = AddressContext(county="嘉義縣")  # Supply only independently supported context.
+prepared = complete_address("民雄鄉大學路一段138號", context)
+assert prepared.original == "民雄鄉大學路一段138號"
+assert prepared.query == "嘉義縣民雄鄉大學路1段138號"
+result = TaiGeotrans().geocode(prepared.original, context=context, candidate_limit=9)
+```
+
+These strings illustrate parsing variants; they are not a verified registry entry or a live geocoding accuracy claim. A road/house without a county cannot acquire a county from the provider or a hard-coded project location. Supplied context can fill only absent county/township components; conflicts are rejected before a request. The caller is responsible for the context's evidence and provenance.
+
+The offline parser normalizes NFKC, whitespace, 台/臺, Chinese/Arabic section numerals and the two subnumber forms (`138之1號`, `138號之1`). It preserves road names, lanes, alleys, house/subnumbers and supplied village/neighborhood/floor constraints. Provider-added village/neighborhood annotations may be absent from the query; supplied annotations must be confirmed. Unsupported or ambiguous syntax stays unparsed and cannot be verified. Rural addresses without a road/street, unsupported floors/subdivisions and noncanonical numerals can remain unresolved; this favors precision over coverage.
+
+TGOS candidate requests use EPSG:4326, exact-only matching, locks for supplied components and 2–9 candidates (default 9). A reached cap or a reported larger total is ambiguous. These settings follow the [official QueryAddr contract](https://addr.tgos.tw/addrws/v30/QueryAddr.asmx?op=QueryAddr); local component checks still apply. The legacy low-level `TGOSClient.geocode_address()` tuple remains a raw provider lookup, cannot express verified provenance, and no longer chooses among multiple candidates. Use the high-level API for address verification.
+
+`GeocodeResult` adds `normalized_address`, `completed_query`, `completed_fields`, `match_status` (`verified_exact`, `fuzzy`, `ambiguous`, `insufficient`, `unresolved`), `verification_reason`, `spatial_precision`, `candidate_count`, candidate explanations and a canonical-JSON provider `response_sha256`. `input_address` retains the exact input. Only a verified candidate has address-level coordinates; this does not establish meter accuracy or entitlement to a particular GIS grid. `confidence=1.0` denotes the provider's exact-match classification, not calibrated positional certainty. Consumers remain responsible for their grid, precision and provenance gates. Batch-request validation now rejects blank items rather than silently dropping them.
+
+Village annotations require independent `VILLAGE` and `ROAD` provider fields. Ambiguous village/road segmentation without those fields remains unresolved; pure string matching cannot establish that an extra village prefix is harmless.
+
+Additional provider townships also require independent `TOWN` and `ROAD` agreement before they can be treated as administrative annotations.
