@@ -47,3 +47,5 @@ Do not include real personal addresses, sensitive coordinates, API keys, or unre
 ## Scope and updates
 
 This notice describes package behavior, not the privacy practices of GitHub, PyPI, TGOS, or applications that integrate TaiGeotrans. Visiting those services or installing packages involves their own infrastructure and policies. Changes to TaiGeotrans's data handling should be reflected in this notice and its [Traditional Chinese version](PRIVACY_ZH.md).
+
+Trusted administrative context supplied by a caller is included in the completed address sent to TGOS. Results can retain the original/normalized/completed address, candidate address explanations and a provider-response digest; applications choose whether and where to persist those records.

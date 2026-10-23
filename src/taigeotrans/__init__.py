@@ -15,7 +15,27 @@ except PackageNotFoundError:
     # metadata yet.  Installed distributions always use pyproject.toml.
     __version__ = "0+unknown"
 
+from taigeotrans.address import (
+    AddressContext,
+    TaiwanAddress,
+    address_mismatch,
+    addresses_match,
+    complete_address,
+    normalize_address,
+    parse_address,
+)
 from taigeotrans.core import TaiGeotrans
 from taigeotrans.models import GeocodeResult, TransformStatus
 
-__all__ = ["TaiGeotrans", "GeocodeResult", "TransformStatus"]
+__all__ = [
+    "TaiGeotrans",
+    "GeocodeResult",
+    "TransformStatus",
+    "AddressContext",
+    "TaiwanAddress",
+    "address_mismatch",
+    "addresses_match",
+    "complete_address",
+    "normalize_address",
+    "parse_address",
+]

@@ -2,14 +2,31 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import math
 import os
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any, TypeVar
 
 import httpx
 
+from taigeotrans.address import parse_address
+
 logger = logging.getLogger(__name__)
+_Result = TypeVar("_Result")
+
+
+@dataclass(frozen=True)
+class TGOSCandidates:
+    candidates: list[dict[str, Any]]
+    match_type: str | None
+    response_sha256: str
+    limit_reached: bool
+    reported_count: int | None = None
 
 
 class TGOSConfigurationError(RuntimeError):
@@ -142,7 +159,7 @@ class TGOSClient:
             self._client = httpx.Client(timeout=self.timeout)
 
         try:
-            return self._geocode_with_retry(address)
+            return self._with_retry(lambda: self._do_geocode_request(address))
         finally:
             if use_temporary_client:
                 self.close()
@@ -154,16 +171,64 @@ class TGOSClient:
                 "Pass app_id/api_key or configure those environment variables."
             )
 
-    def _geocode_with_retry(
-        self,
-        address: str,
-    ) -> tuple[float | None, float | None, str | None, float | None]:
+    def geocode_candidates(self, address: str, *, candidate_limit: int = 9) -> TGOSCandidates:
+        """Request exact-only candidates with supplied administrative/street locks.
+
+        The official API caps its output; reaching our configured limit is not
+        evidence that every possible candidate has been seen.
+        """
+        if type(candidate_limit) is not int or not 2 <= candidate_limit <= 9:
+            raise ValueError("candidate_limit must be an integer between 2 and 9")
+        requested = parse_address(address)
+        if not requested.is_complete:
+            raise ValueError("A county, road and house number are required")
+        self._validate_credentials()
+        temporary = self._client is None
+        if temporary:
+            self._client = httpx.Client(timeout=self.timeout)
+        options = {
+            "oIsOnlyFullMatch": "true",
+            "oIsLockCounty": "true",
+            "oIsLockTown": str(bool(requested.township)).lower(),
+            "oIsLockVillage": str(bool(requested.village)).lower(),
+            "oIsLockRoadSection": "true",
+            "oIsLockLane": str(bool(requested.lane)).lower(),
+            "oIsLockAlley": str(bool(requested.alley)).lower(),
+            "oCanIgnoreVillage": str(not requested.village).lower(),
+            "oCanIgnoreNeighborhood": str(not requested.neighborhood).lower(),
+            "oReturnMaxCount": str(candidate_limit),
+        }
+        try:
+            data = self._with_retry(lambda: self._request_payload(address, options))
+        finally:
+            if temporary:
+                self.close()
+        rows = data["AddressList"]
+        info = data.get("Info")
+        match_type = None
+        truncated = len(rows) >= candidate_limit
+        reported_count = None
+        if isinstance(info, list) and info and isinstance(info[0], dict):
+            value = info[0].get("OutMatchType")
+            match_type = value if isinstance(value, str) else None
+            total = info[0].get("OutTotal")
+            if total is not None:
+                if isinstance(total, bool) or not str(total).isdigit() or int(total) < len(rows):
+                    raise TGOSResponseError("TGOS returned an inconsistent candidate count")
+                truncated = truncated or int(total) > len(rows)
+                reported_count = int(total)
+        digest = hashlib.sha256(
+            json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        return TGOSCandidates(rows, match_type, digest, truncated, reported_count)
+
+    def _with_retry(self, request: Callable[[], _Result]) -> _Result:
         last_error: Exception | None = None
 
         for attempt in range(1, self.max_retries + 1):
             try:
                 logger.debug("Geocoding request attempt %s/%s", attempt, self.max_retries)
-                return self._do_geocode_request(address)
+                return request()
             except httpx.HTTPStatusError as exc:
                 status_code = exc.response.status_code
                 if status_code < 500 and status_code != 429:
@@ -181,10 +246,11 @@ class TGOSClient:
             f"TGOS request failed after {self.max_retries} attempts"
         ) from last_error
 
-    def _do_geocode_request(
+    def _request_payload(
         self,
         address: str,
-    ) -> tuple[float | None, float | None, str | None, float | None]:
+        overrides: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         if self._client is None:
             raise RuntimeError("HTTP client is not initialized")
 
@@ -210,6 +276,9 @@ class TGOSClient:
             "oReturnMaxCount": "1",
         }
 
+        if overrides:
+            params.update(overrides)
+
         logger.debug("Sending TGOS address request to %s", self.base_url)
         response = self._client.get(self.base_url, params=params)
         response.raise_for_status()
@@ -227,8 +296,17 @@ class TGOSClient:
             raise TGOSResponseError("TGOS response is missing AddressList")
         if not isinstance(address_list, list):
             raise TGOSResponseError("TGOS AddressList is not a list")
-        if not address_list:
-            logger.info("TGOS did not find an address")
+        if any(not isinstance(item, dict) for item in address_list):
+            raise TGOSResponseError("TGOS AddressList contains an invalid item")
+        return data
+
+    def _do_geocode_request(
+        self, address: str
+    ) -> tuple[float | None, float | None, str | None, float | None]:
+        data = self._request_payload(address)
+        address_list = data["AddressList"]
+        if len(address_list) != 1:
+            # The legacy tuple contract cannot represent ambiguous candidates.
             return None, None, None, 0.0
 
         best_match = address_list[0]

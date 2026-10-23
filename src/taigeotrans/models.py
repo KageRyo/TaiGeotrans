@@ -43,6 +43,16 @@ class GeocodeResult(BaseModel):
     source: str | None = None
     matched_address: str | None = None
     error_message: str | None = None
+    normalized_address: str | None = None
+    completed_query: str | None = None
+    completed_fields: list[str] = Field(default_factory=list)
+    match_status: str | None = None
+    verification_reason: str | None = None
+    spatial_precision: str | None = None
+    candidate_count: int = 0
+    provider_candidate_count: int | None = None
+    candidates: list[dict] = Field(default_factory=list)
+    response_sha256: str | None = None
 
     @field_validator("confidence")
     @classmethod
@@ -78,6 +88,15 @@ class GeocodeResult(BaseModel):
                 "source": self.source,
                 "matched_address": self.matched_address,
                 "input_address": self.input_address,
+                "normalized_address": self.normalized_address,
+                "completed_query": self.completed_query,
+                "completed_fields": self.completed_fields,
+                "match_status": self.match_status,
+                "verification_reason": self.verification_reason,
+                "spatial_precision": self.spatial_precision,
+                "candidate_count": self.candidate_count,
+                "provider_candidate_count": self.provider_candidate_count,
+                "response_sha256": self.response_sha256,
             },
         }
 
@@ -93,7 +112,9 @@ class BatchGeocodeRequest(BaseModel):
         """Validate address list"""
         if not v:
             raise ValueError("Address list cannot be empty")
-        return [addr.strip() for addr in v if addr.strip()]
+        if any(not address.strip() for address in v):
+            raise ValueError("Addresses cannot be blank")
+        return v
 
 
 class BatchTransformRequest(BaseModel):

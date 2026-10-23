@@ -7,6 +7,15 @@ import math
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
+from taigeotrans.address import (
+    AddressContext,
+    TaiwanAddress,
+    _subnumber,
+    address_mismatch,
+    complete_address,
+    normalize_address,
+    parse_address,
+)
 from taigeotrans.models import GeocodeResult, TransformStatus
 from taigeotrans.utils.projection import CoordinateTransformer
 
@@ -47,6 +56,58 @@ def _require_pandas() -> Any:
             "`pip install taigeotrans[dataframe]`."
         ) from exc
     return pd
+
+
+def _verify_candidate(
+    requested: TaiwanAddress, row: dict[str, Any]
+) -> tuple[str | None, tuple[float, float] | None]:
+    matched = row.get("FULL_ADDR")
+    if not isinstance(matched, str):
+        return "missing_matched_address", None
+    returned = parse_address(matched)
+    mismatch = address_mismatch(requested, returned)
+    if mismatch:
+        return mismatch, None
+    for key, field, suffix in [
+        ("COUNTY", "county", ""),
+        ("TOWN", "township", ""),
+        ("VILLAGE", "village", ""),
+        ("ROAD", "road", ""),
+        ("NEIGHBORHOOD", "neighborhood", "鄰"),
+        ("SECTION", "section", "段"),
+        ("LANE", "lane", "巷"),
+        ("ALLEY", "alley", "弄"),
+        ("NUMBER", "house_number", "號"),
+    ]:
+        value = row.get(key)
+        if value is None or value == "":
+            continue
+        normalized = normalize_address(str(value))
+        try:
+            if suffix:
+                normalized = _subnumber(normalized.replace("號之", "之").removesuffix(suffix))
+        except (ValueError, KeyError):
+            return "provider_component_conflict", None
+        if normalized != getattr(returned, field):
+            return "provider_component_conflict", None
+    if row.get("SUB_ALLEY") or row.get("TONG"):
+        return "unsupported_subdivision", None
+    for key in ("precision", "spatial_precision", "location_type"):
+        precision = row.get(key)
+        if precision is not None and (
+            not isinstance(precision, str)
+            or precision not in {"address", "house_number", "house", "building", "rooftop", "point"}
+        ):
+            return "coarse_provider_precision", None
+    try:
+        if isinstance(row["X"], bool) or isinstance(row["Y"], bool):
+            return "invalid_coordinates", None
+        lon, lat = float(row["X"]), float(row["Y"])
+    except (ValueError, TypeError, KeyError):
+        return "invalid_coordinates", None
+    if not (math.isfinite(lon) and math.isfinite(lat) and -180 <= lon <= 180 and -90 <= lat <= 90):
+        return "invalid_coordinates", None
+    return None, (lon, lat)
 
 
 class TaiGeotrans:
@@ -100,77 +161,145 @@ class TaiGeotrans:
             )
         return self.tgos_client
 
-    def geocode(self, address: str) -> GeocodeResult:
-        """Geocode a Taiwan address and return WGS84/TWD97 coordinates."""
+    def geocode(
+        self, address: str, *, context: AddressContext | None = None, candidate_limit: int = 9
+    ) -> GeocodeResult:
+        """Return coordinates only for one verified address-level TGOS candidate.
+
+        Unlike 0.1.x, a fuzzy/provider-first coordinate is not successful address
+        verification. The original input is retained, including its whitespace.
+        """
         if not address or not address.strip():
             return GeocodeResult(
                 input_address=address,
                 status=TransformStatus.INVALID,
+                match_status="insufficient",
+                verification_reason="empty_address",
                 error_message="Empty address",
             )
-
-        address = address.strip()
-        client = self._get_tgos_client()
-
         try:
-            lon, lat, matched_address, confidence = client.geocode_address(address)
-
-            if lon is None or lat is None:
-                return GeocodeResult(
-                    input_address=address,
-                    status=TransformStatus.FAILED,
-                    error_message="TGOS could not geocode this address",
-                    source="TGOS",
-                )
-
-            try:
-                x, y = self.transformer.wgs84_to_twd97(lon, lat, validate=False)
-            except Exception as exc:
-                logger.debug("Coordinate transformation failed", exc_info=True)
-                return GeocodeResult(
-                    input_address=address,
-                    wgs84_lon=lon,
-                    wgs84_lat=lat,
-                    status=TransformStatus.FAILED,
-                    matched_address=matched_address,
-                    confidence=confidence,
-                    source="TGOS",
-                    error_message=f"Coordinate transformation failed: {exc}",
-                )
-
-            in_bounds = self.transformer.is_in_taiwan_bounds_twd97(x, y)
-            status = TransformStatus.SUCCESS if in_bounds else TransformStatus.OUT_OF_BOUNDS
+            requested = complete_address(address, context)
+        except ValueError as exc:
             return GeocodeResult(
                 input_address=address,
+                status=TransformStatus.INVALID,
+                match_status="unresolved",
+                verification_reason="context_conflict",
+                error_message=str(exc),
+            )
+        metadata: dict[str, Any] = {
+            "input_address": address,
+            "normalized_address": requested.normalized,
+            "completed_query": requested.query,
+            "completed_fields": list(requested.completed_fields),
+            "source": "TGOS",
+            "spatial_precision": "unknown",
+        }
+        if not requested.is_complete:
+            return GeocodeResult(
+                **metadata,
+                status=TransformStatus.PARTIAL,
+                match_status="insufficient",
+                verification_reason="insufficient_address",
+            )
+        client = self._get_tgos_client()
+        try:
+            reply = client.geocode_candidates(requested.query, candidate_limit=candidate_limit)
+        except Exception as exc:
+            from taigeotrans.providers.tgos import TGOSConfigurationError
+
+            if isinstance(exc, (TGOSConfigurationError, ValueError)):
+                raise
+            logger.debug("Geocoding provider failed (%s)", type(exc).__name__)
+            return GeocodeResult(
+                **metadata,
+                status=TransformStatus.FAILED,
+                match_status="unresolved",
+                verification_reason="provider_error",
+                error_message="TGOS request or response failed",
+            )
+        verified = []
+        details = []
+        for row in reply.candidates:
+            reason, coordinates = _verify_candidate(requested, row)
+            if reason is None and reply.match_type != "完全比對":
+                reason = "provider_match_not_exact"
+            item = {
+                "matched_address": row.get("FULL_ADDR"),
+                "provider_match_type": reply.match_type,
+                "verification_reason": reason or "components_confirmed",
+            }
+            details.append(item)
+            if reason is None and coordinates is not None:
+                verified.append((row, coordinates))
+        metadata.update(
+            candidate_count=len(reply.candidates),
+            provider_candidate_count=reply.reported_count,
+            response_sha256=reply.response_sha256,
+            candidates=details,
+        )
+        if reply.limit_reached or len(verified) > 1:
+            state, reason = (
+                "ambiguous",
+                "candidate_limit_reached"
+                if reply.limit_reached
+                else "multiple_verified_candidates",
+            )
+        elif len(verified) == 1:
+            selected, (lon, lat) = verified[0]
+            try:
+                x, y = self.transformer.wgs84_to_twd97(lon, lat, validate=False)
+            except Exception:
+                return GeocodeResult(
+                    **metadata,
+                    status=TransformStatus.FAILED,
+                    match_status="unresolved",
+                    verification_reason="coordinate_transform_failed",
+                )
+            in_bounds = self.transformer.is_in_taiwan_bounds_twd97(x, y)
+            if not in_bounds:
+                return GeocodeResult(
+                    **metadata,
+                    status=TransformStatus.OUT_OF_BOUNDS,
+                    match_status="unresolved",
+                    verification_reason="coordinates_outside_taiwan",
+                )
+            metadata["spatial_precision"] = "address"
+            return GeocodeResult(
+                **metadata,
+                status=TransformStatus.SUCCESS if in_bounds else TransformStatus.OUT_OF_BOUNDS,
+                match_status="verified_exact",
+                verification_reason="components_confirmed",
                 twd97_x=x,
                 twd97_y=y,
                 wgs84_lon=lon,
                 wgs84_lat=lat,
-                status=status,
-                confidence=confidence,
-                source="TGOS",
-                matched_address=matched_address,
-                error_message=None
-                if in_bounds
-                else "Coordinates outside supported Taiwan-area bounds",
+                matched_address=selected["FULL_ADDR"],
+                confidence=1.0,
             )
-        except Exception as exc:
-            from taigeotrans.providers.tgos import TGOSConfigurationError
-
-            if isinstance(exc, TGOSConfigurationError):
-                raise
-            logger.debug("Geocoding failed for address", exc_info=True)
-            return GeocodeResult(
-                input_address=address,
-                status=TransformStatus.FAILED,
-                source="TGOS",
-                error_message=f"Processing failed: {exc}",
+        elif reply.candidates and reply.match_type and reply.match_type != "完全比對":
+            state, reason = "fuzzy", "provider_match_not_exact"
+        else:
+            state, reason = (
+                "unresolved",
+                "components_not_confirmed" if reply.candidates else "no_match",
             )
+        return GeocodeResult(
+            **metadata,
+            status=TransformStatus.PARTIAL
+            if state in {"ambiguous", "fuzzy"}
+            else TransformStatus.FAILED,
+            match_status=state,
+            verification_reason=reason,
+        )
 
     def batch_geocode(
         self,
         addresses: list[str],
         show_progress: bool = True,
+        *,
+        context: AddressContext | None = None,
+        candidate_limit: int = 9,
     ) -> list[GeocodeResult]:
         """Geocode multiple addresses while preserving input order."""
         if not addresses:
@@ -183,7 +312,9 @@ class TaiGeotrans:
 
         with client:
             for address in iterator:
-                results.append(self.geocode(address))
+                results.append(
+                    self.geocode(address, context=context, candidate_limit=candidate_limit)
+                )
 
         success_count = sum(1 for result in results if result.status == TransformStatus.SUCCESS)
         logger.info("Batch geocoding complete: %s/%s successful", success_count, len(results))
