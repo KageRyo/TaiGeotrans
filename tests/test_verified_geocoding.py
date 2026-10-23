@@ -14,7 +14,9 @@ def candidate(address=ADDRESS, lon=120.472, lat=23.563):
     return {"FULL_ADDR": address, "X": lon, "Y": lat}
 
 
-def converter(rows, match_type="完全比對", *, expected=ADDRESS.replace("一段", "1段")):
+def converter(
+    rows, match_type="完全比對", *, expected=ADDRESS.replace("一段", "1段"), lock_town="true"
+):
     client = TGOSClient(app_id="test-app", api_key="test-key", max_retries=1)
 
     def respond(request):
@@ -22,7 +24,7 @@ def converter(rows, match_type="完全比對", *, expected=ADDRESS.replace("一�
         assert request.url.params["oReturnMaxCount"] == "9"
         assert request.url.params["oIsOnlyFullMatch"] == "true"
         assert request.url.params["oIsLockCounty"] == "true"
-        assert request.url.params["oIsLockTown"] == "true"
+        assert request.url.params["oIsLockTown"] == lock_town
         return httpx.Response(
             200, json={"Info": [{"OutMatchType": match_type}], "AddressList": rows}
         )
@@ -171,3 +173,38 @@ def test_legacy_tuple_does_not_select_first_of_multiple_candidates():
         )
     )
     assert client.geocode_address(ADDRESS) == (None, None, None, 0.0)
+
+
+def test_ambiguous_village_or_road_needs_independent_provider_components():
+    address = "台中市南區美村南路1號"
+    result = converter([candidate(address)], expected=address).geocode(address)
+    assert result.match_status == "unresolved" and result.twd97_x is None
+    assert result.candidates[0]["verification_reason"] == "ambiguous_village_or_road"
+
+
+def test_structured_village_and_road_can_confirm_unambiguous_components():
+    address = "嘉義縣民雄鄉三興村大學路138號"
+    row = {**candidate(address), "VILLAGE": "三興村", "ROAD": "大學路"}
+    result = converter([row], expected=address).geocode(address)
+    assert result.match_status == "verified_exact"
+
+
+def test_optional_provider_village_requires_structured_corroboration():
+    row = {**candidate("嘉義縣民雄鄉三興村大學路一段138號"), "VILLAGE": "三興村", "ROAD": "大學路"}
+    assert converter([row]).geocode(ADDRESS).match_status == "verified_exact"
+    del row["ROAD"]
+    assert converter([row]).geocode(ADDRESS).match_status == "unresolved"
+
+
+def test_optional_township_cannot_remove_a_road_prefix_without_components():
+    query = "新北市一路1號"
+    row = candidate("新北市新市一路1號")
+    assert (
+        converter([row], expected=query, lock_town="false").geocode(query).match_status
+        == "unresolved"
+    )
+    row.update(TOWN="新市", ROAD="一路")
+    assert (
+        converter([row], expected=query, lock_town="false").geocode(query).match_status
+        == "verified_exact"
+    )

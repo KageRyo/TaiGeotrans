@@ -47,7 +47,14 @@ def test_partial_and_coarse_inputs_are_not_complete_addresses(address):
     ],
 )
 def test_equivalent_sections_and_optional_administrative_annotations(query, matched):
-    assert addresses_match(parse_address(query), parse_address(matched))
+    from taigeotrans import address_mismatch
+
+    # Pure strings cannot independently distinguish 美村南路 from 美村 + 南路.
+    assert not addresses_match(parse_address(query), parse_address(matched))
+    assert (
+        address_mismatch(parse_address(query), parse_address(matched), allow_extra_village=True)
+        is None
+    )
 
 
 @pytest.mark.parametrize(
@@ -82,3 +89,34 @@ def test_malformed_or_ambiguous_numerals_are_preserved_without_guessing(number):
     parsed = parse_address(f"嘉義縣民雄鄉大學路{number}號")
     assert not parsed.is_complete
     assert parsed.unparsed
+
+
+@pytest.mark.parametrize(
+    "county,town,road",
+    [
+        ("臺中市", "大里區", "中山路"),
+        ("高雄市", "路竹區", "中正路"),
+        ("屏東縣", "里港鄉", "中山路"),
+        ("臺東縣", "太麻里鄉", "中山路"),
+        ("南投縣", "水里鄉", "中山路"),
+        ("臺北市", "信義區", "市府路"),
+        ("臺南市", "新市區", "中山路"),
+    ],
+)
+def test_township_names_and_city_prefixed_roads(county, town, road):
+    parsed = parse_address(county + town + road + "1號")
+    assert parsed.township == town
+    assert parsed.road == road
+    assert AddressContext(township=town).township == town
+    with pytest.raises(ValueError, match="conflicts"):
+        complete_address(parsed.original, AddressContext(township="太平區"))
+
+
+def test_road_prefix_cannot_be_dropped_as_optional_village():
+    assert not addresses_match(
+        parse_address("台中市南區南路1號"), parse_address("台中市南區美村南路1號")
+    )
+
+
+def test_road_prefix_cannot_be_dropped_as_optional_township():
+    assert not addresses_match(parse_address("新北市一路1號"), parse_address("新北市新市一路1號"))

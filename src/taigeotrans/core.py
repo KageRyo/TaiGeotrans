@@ -65,9 +65,8 @@ def _verify_candidate(
     if not isinstance(matched, str):
         return "missing_matched_address", None
     returned = parse_address(matched)
-    mismatch = address_mismatch(requested, returned)
-    if mismatch:
-        return mismatch, None
+    if returned.village is not None and (not row.get("VILLAGE") or not row.get("ROAD")):
+        return "ambiguous_village_or_road", None
     for key, field, suffix in [
         ("COUNTY", "county", ""),
         ("TOWN", "township", ""),
@@ -90,6 +89,14 @@ def _verify_candidate(
             return "provider_component_conflict", None
         if normalized != getattr(returned, field):
             return "provider_component_conflict", None
+    mismatch = address_mismatch(
+        requested,
+        returned,
+        allow_extra_village=bool(row.get("VILLAGE") and row.get("ROAD")),
+        allow_extra_township=bool(row.get("TOWN") and row.get("ROAD")),
+    )
+    if mismatch:
+        return mismatch, None
     if row.get("SUB_ALLEY") or row.get("TONG"):
         return "unsupported_subdivision", None
     for key in ("precision", "spatial_precision", "location_type"):

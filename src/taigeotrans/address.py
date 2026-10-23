@@ -85,7 +85,7 @@ class AddressContext:
             object.__setattr__(self, "county", county)
         if self.township is not None:
             township = normalize_address(self.township)
-            if not re.fullmatch(r"[^村里鄰路街段巷弄號\d]{1,8}[鄉鎮市區]", township):
+            if not re.fullmatch(r"[^村鄰街段巷弄號\d]{1,8}[鄉鎮市區]", township):
                 raise ValueError("Invalid context township")
             object.__setattr__(self, "township", township)
 
@@ -142,7 +142,7 @@ def parse_address(value: str) -> TaiwanAddress:
     if county:
         rest = rest[len(county) :]
     for name, pattern in [
-        ("township", r"[^村里鄰路街段巷弄號\d]{1,8}[鄉鎮市區]"),
+        ("township", r"(?:[^村鄰街段巷弄號\d]{1,8}?[鄉鎮區]|[^村鄰路街段巷弄號\d]{1,8}?市)"),
         ("village", r"[^鄰路街段巷弄號\d]{1,8}[村里]"),
         ("neighborhood", rf"{_NUM}鄰"),
         ("road", r"[^號巷弄\d]+?(?:大道|路|街)"),
@@ -191,7 +191,13 @@ def complete_address(value: str, context: AddressContext | None = None) -> Taiwa
     return replace(result, completed_fields=tuple(completed))
 
 
-def address_mismatch(requested: TaiwanAddress, returned: TaiwanAddress) -> str | None:
+def address_mismatch(
+    requested: TaiwanAddress,
+    returned: TaiwanAddress,
+    *,
+    allow_extra_village: bool = False,
+    allow_extra_township: bool = False,
+) -> str | None:
     """Return a reason when supplied components cannot be independently confirmed."""
     if not requested.is_complete:
         return "insufficient_address"
@@ -201,6 +207,16 @@ def address_mismatch(requested: TaiwanAddress, returned: TaiwanAddress) -> str |
     for field in ("county", "road", "section", "lane", "alley", "house_number"):
         if getattr(requested, field) != getattr(returned, field):
             return f"{field}_mismatch"
+    if requested.township != returned.township and not (
+        allow_extra_township and requested.township is None
+    ):
+        return "ambiguous_township_or_road"
+    # A 村/里 prefix can also be part of a road name (美村南路). Without
+    # an explicit neighbourhood separator, never drop it as optional annotation.
+    if requested.village != returned.village and not (
+        allow_extra_village and requested.village is None
+    ):
+        return "ambiguous_village_or_road"
     for field in ("township", "village", "neighborhood", "floor"):
         value = getattr(requested, field)
         if value is not None and value != getattr(returned, field):

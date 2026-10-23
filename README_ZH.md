@@ -178,3 +178,7 @@ result = TaiGeotrans().geocode(prepared.original, context=context, candidate_lim
 TGOS 使用 EPSG:4326、只做完全比對、鎖定已提供的地址元件，候選上限可設為 2–9，預設 9。達到上限或回報總筆數較多時保留歧義，不宣稱唯一。參數依照[官方 QueryAddr 說明](https://addr.tgos.tw/addrws/v30/QueryAddr.asmx?op=QueryAddr)，結果仍須通過本地元件比對。舊版低階 `TGOSClient.geocode_address()` tuple 仍是原始供應者查詢，不能表示驗證來源，且不再從多筆候選直接取第一筆；地址驗證應使用高階 API。
 
 結果新增正規化地址、完成後查詢、補齊欄位、`match_status`（`verified_exact`／`fuzzy`／`ambiguous`／`insufficient`／`unresolved`）、驗證理由、空間精度、候選數與說明，以及供應者 canonical JSON 的 SHA-256。`input_address` 保留原始輸入。地址層級驗證不保證公尺級準確度，也不代表可以直接映射任意網格；`confidence=1.0` 表示供應者完全比對分類，並非校準過的位置可信度。消費端仍須維持自身的精度、來源與網格驗證。批次請求模型現在拒絕空白項目，不會靜默刪除它們。
+
+村里標記須由供應者獨立的 `VILLAGE`、`ROAD` 欄位交叉確認。無法區分村里與道路名稱且缺少這些欄位時，結果保持未解析；單靠字串比較不能認定額外前綴只是村里註記。
+
+供應者額外提供的鄉鎮市區，也必須由獨立的 `TOWN`、`ROAD` 欄位交叉確認，才能視為行政註記。

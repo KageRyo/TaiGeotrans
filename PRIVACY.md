@@ -2,7 +2,7 @@
 
 **English** | [繁體中文](PRIVACY_ZH.md)
 
-Last updated: 2026-10-13. This notice describes the official TaiGeotrans Python package and CLI as implemented in version 0.1.2. It does not describe a separately hosted application that uses the package.
+Last updated: 2026-10-23. This notice describes the official TaiGeotrans Python package and CLI as implemented in version 0.2.0. It does not describe a separately hosted application that uses the package.
 
 ## Data flow
 
