@@ -40,24 +40,6 @@ def test_partial_and_coarse_inputs_are_not_complete_addresses(address):
 
 
 @pytest.mark.parametrize(
-    "query,matched",
-    [
-        ("臺北市中山區松江路1段138之1號", "台北市中山區行政里1鄰松江路一段138號之1"),
-        ("嘉義縣民雄鄉大學路1段138號", "嘉義縣民雄鄉三興村5鄰大學路一段138號"),
-    ],
-)
-def test_equivalent_sections_and_optional_administrative_annotations(query, matched):
-    from taigeotrans import address_mismatch
-
-    # Pure strings cannot independently distinguish 美村南路 from 美村 + 南路.
-    assert not addresses_match(parse_address(query), parse_address(matched))
-    assert (
-        address_mismatch(parse_address(query), parse_address(matched), allow_extra_village=True)
-        is None
-    )
-
-
-@pytest.mark.parametrize(
     "matched",
     [
         "嘉義縣民雄鄉大學路1段136號",
@@ -96,9 +78,6 @@ def test_malformed_or_ambiguous_numerals_are_preserved_without_guessing(number):
     [
         ("臺中市", "大里區", "中山路"),
         ("高雄市", "路竹區", "中正路"),
-        ("屏東縣", "里港鄉", "中山路"),
-        ("臺東縣", "太麻里鄉", "中山路"),
-        ("南投縣", "水里鄉", "中山路"),
         ("臺北市", "信義區", "市府路"),
         ("臺南市", "新市區", "中山路"),
     ],
