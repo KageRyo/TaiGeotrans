@@ -28,7 +28,7 @@ Refer to the [TGOS privacy policy](https://www.tgos.tw/tgos/Privacy) and the ser
 
 Results can contain the original address or coordinates, matched addresses, converted coordinates, and error details. TaiGeotrans does not maintain its own persistent query database. Your application, terminal, output files, backups, or hosting platform may retain these values according to their configuration.
 
-Coordinate debug messages, warnings, and errors can include coordinate values. HTTP client logs and exception traces may include request URLs, which can contain addresses and TGOS credentials. The package's own TGOS logging calls do not explicitly print AppID/APIKey values, but this is not a guarantee that credentials cannot appear in logs elsewhere in the execution environment.
+Coordinate debug messages, warnings, and errors can include coordinate values. The package's own TGOS logging calls do not print AppID/APIKey values, but HTTP client logs and exception traces may include request URLs, which can contain addresses and TGOS credentials.
 
 Command-line arguments may also remain in shell history or be visible to process-monitoring tools. Review logging and output settings before processing sensitive data; redact addresses, coordinates, credentials, and request URLs before sharing diagnostic material.
 
